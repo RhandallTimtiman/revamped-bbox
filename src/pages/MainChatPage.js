@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useHistory } from "react-router-dom";
 import {
   ChatBubble,
@@ -9,65 +9,69 @@ import {
   EmailForm,
   SmsForm,
   UploadFile,
-  NotificationBubble,
-  FileChatBubble,
 } from "../components/Components";
+import firebase from "../firebase/client-app";
+import { onSnapshot } from "firebase/firestore";
+import { sendChat } from "../service/blackbox-service";
+import sendbbx from "../assets/sound/sendbbx.mp3";
+
+let unsubscribe = null;
 
 const MainChatPage = () => {
   let history = useHistory();
 
+  const db = firebase.firestore();
+
+  const [activeChat, setActiveChat] = useState("");
+
+  useEffect(() => {
+    const channels = history.location.state.channels;
+
+    setActiveChat(channels[0].header);
+  }, [history.location.state]);
+
+  useEffect(() => {
+    if (unsubscribe) {
+      console.log("Listener Unsubscribed!");
+      unsubscribe();
+    }
+
+    if (activeChat.length !== 0) {
+      unsubscribe = listener();
+    }
+
+    return () => {
+      if (activeChat.length !== 0) {
+        console.log("Use Effect Disposed!");
+        unsubscribe();
+      }
+    };
+  }, [activeChat]);
+
+  const listener = () => {
+    console.log(`Active Chat ${activeChat}`);
+    let sfRef = db
+      .collection("BLACKBOX102")
+      .doc("conversation")
+      .collection("channels")
+      .doc(activeChat)
+      .collection("message")
+      .orderBy("timeStamp", "desc");
+
+    return onSnapshot(sfRef, (snapShot) => {
+      let tempArr = [];
+      snapShot.docs.forEach((doc) => {
+        tempArr.push(doc.data());
+      });
+
+      setChatList([...tempArr]);
+    });
+  };
+
   const [showMenu, setShowMenu] = useState(false);
 
   const [bubbleHeadList, setBubbleHeadList] = useState([
-    {
-      header: "All",
-      notification: 2,
-      isActive: true,
-      chatHeader: "",
-      serviceHeader: "",
-    },
-    {
-      header: "Rhandall Corp And Friends",
-      notification: 12,
-      isActive: false,
-      chatHeader: "> SF123213",
-      serviceHeader: "/ Service ID",
-    },
-    {
-      header: "Arvin Corp And Friends",
-      notification: 32,
-      isActive: false,
-      chatHeader: "> SF123213",
-      serviceHeader: "/ Service ID",
-    },
-    {
-      header: "Test Corp And Friends",
-      notification: 2,
-      isActive: false,
-      chatHeader: "> SF123213",
-      serviceHeader: "/ Service ID",
-    },
-    {
-      header: "HanToken Corp and Sleeping Friends",
-      notification: 4,
-      isActive: false,
-      chatHeader: "> SF123213",
-      serviceHeader: "/ Service ID",
-    },
-    {
-      header: "Fried Towel - TR0213",
-      notification: 1,
-      isActive: false,
-      chatHeader: "> SF123213",
-      serviceHeader: "/ Service ID",
-    },
-    {
-      header: "Hotdog PH",
-      notification: 43,
-      isActive: false,
-      chatHeader: "> SF123213",
-      serviceHeader: "/ Service ID",
-    },
+    ...history.location.state.channels,
   ]);
 
   const [buttonList, setButtonList] = useState([
@@ -175,6 +179,10 @@ const MainChatPage = () => {
 
   const [currentActiveMenu, setCurrentActiveMenu] = useState(null);
 
+  const [chatList, setChatList] = useState([]);
+
+  const [message, setMessage] = useState("");
+
   function goToPreviousPage() {
     history.goBack();
   }
@@ -188,7 +196,10 @@ const MainChatPage = () => {
 
     temp[index].isActive = true;
 
+    console.log(temp[index]);
+
     setBubbleHeadList(temp);
+    setActiveChat(temp[index].header);
   }
 
   function selectActiveMenuButton(index) {
@@ -215,6 +226,44 @@ const MainChatPage = () => {
 
   function gotoMembersPage() {
     history.push(`chat/${1}`);
+  }
+
+  const sendMessage = async () => {
+    if (message.trim().length === 0) {
+      return;
+    }
+
+    let payload = {
+      topic: history.location.state.topic,
+      channel: activeChat,
+      senderInfo: {
+        memberId: history.location.state.currentUser,
+        name: "Rhandall Bakal Bato",
+      },
+      conversation: {
+        message,
+      },
+      type: "CHAT",
+    };
+
+    let result = await sendChat(payload);
+
+    if (result.status === 200) {
+      playAudio();
+      scrollToBottom();
+      console.log("Message Sent!");
+      console.log(result.data);
+      setMessage("");
+    }
+  };
+
+  function playAudio() {
+    document.getElementById("myAudio").play();
+  }
+
+  function scrollToBottom() {
+    const bubblehouse = document.getElementById("bubblehouse");
+    bubblehouse.scrollTop = bubblehouse.scrollHeight;
   }
 
   return (
@@ -286,8 +335,29 @@ const MainChatPage = () => {
         </svg>
       </div>
       <div className="flex-grow h-full w-full overflow-hidden relative">
-        <div className="absolute top-0 left-0 right-0 bottom-0 overflow-y-auto flex flex-col gap-4 pb-2">
-          <ChatBubble isSelf={true} />
+        <audio id="myAudio">
+          <source src={sendbbx} type="audio/mp3" />
+        </audio>
+        <div
+          id="bubblehouse"
+          className="absolute top-0 left-0 right-0 bottom-0 overflow-y-auto flex flex-col-reverse gap-4 pb-2"
+        >
+          {/* {chatList.length !== 0 && (
+            <>
+              {chatList.map((chat) => {
+                <ChatBubble isSelf={false} />;
+              })}
+            </>
+          )} */}
+          {chatList.length !== 0 &&
+            chatList.map((chat) => (
+              <ChatBubble
+                isSelf={chat.memberId === history.location.state.currentUser}
+                {...chat}
+                key={chat.timeStamp}
+              />
+            ))}
+          {/* <ChatBubble isSelf={true} />
           <ChatBubble isSelf={false} />
           <ChatBubble isSelf={true} />
           <ChatBubble isSelf={false} />
@@ -299,7 +369,7 @@ const MainChatPage = () => {
           <ChatBubble isSelf={true} />
           <FileChatBubble isSelf={true} fileName="meoemwoe.jpeg" />
           <NotificationBubble isAlert={true} hasAttachment={false} />
-          <NotificationBubble isAlert={false} hasAttachment={true} />
+          <NotificationBubble isAlert={false} hasAttachment={true} /> */}
         </div>
       </div>
       <div className="flex flex-col">
@@ -346,7 +416,9 @@ const MainChatPage = () => {
           <textarea
             className="bg-gray-100 rounded-md w-full py-2 pr-4 pl-2 text-gray-700 leading-tight focus:outline-none resize-none"
             type="text"
+            value={message}
             placeholder="Type Here"
+            onChange={(e) => setMessage(e.target.value)}
           />
           <svg
             className="cursor-pointer"
@@ -354,6 +426,7 @@ const MainChatPage = () => {
             width="33.939"
             height="28.386"
             viewBox="0 0 33.939 28.386"
+            onClick={() => sendMessage()}
           >
             <path
               id="Icon_material-send"

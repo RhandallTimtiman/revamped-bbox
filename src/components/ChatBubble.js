@@ -1,6 +1,11 @@
 import React from "react";
+import moment from "moment";
 
-const ChatBubble = ({ isSelf = false }) => {
+const ChatBubble = ({ isSelf = false, ...rest }) => {
+  function toDateTime(secs) {
+    return moment(secs).format("MMM. DD, yyyy hh:mm a");
+  }
+
   return (
     <div
       className={`flex flex-col w-full ${
@@ -18,19 +23,14 @@ const ChatBubble = ({ isSelf = false }) => {
           </div>
         )}
         <div>
-          {!isSelf && (
-            <p className="text-md text-gray-400">Rhandall Logistics</p>
-          )}
+          {!isSelf && <p className="text-md text-gray-400">{rest.name}</p>}
           <div
             className={`rounded-lg p-4 max-w-xs flex flex-col ${
               isSelf ? "bg-default" : "bg-gray-100"
             }`}
           >
             <p className={`text-sm ${isSelf ? "text-white" : ""}`}>
-              It is a long established fact that a reader will be distracted by
-              the readable content of a page when looking at its layout. The
-              point of using Lorem Ipsum is that it has a more-or-less normal
-              distribution of letters, as opposed to
+              {rest.conversation.message}
             </p>
             <div className="flex flex-row justify-end">
               <p
@@ -38,7 +38,7 @@ const ChatBubble = ({ isSelf = false }) => {
                   isSelf ? "text-white" : "text-gray-400"
                 }`}
               >
-                2:00 pm
+                {toDateTime(rest.timeStamp)}
               </p>
             </div>
           </div>
